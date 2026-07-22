@@ -30,7 +30,7 @@ class Recorder:
             "-pix_fmt",
             "yuv420p",
             "-c:v",
-            "h264_v4l2m2m",
+            config.VIDEO_CODEC,
             "-b:v",
             config.VIDEO_BITRATE,
             output_file
