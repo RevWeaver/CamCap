@@ -65,7 +65,14 @@ class Recorder:
             return
 
         self.process.send_signal(signal.SIGINT)
-        self.process.wait()
+
+        try:
+            self.process.wait(timeout=5)
+
+        except subprocess.TimeoutExpired:
+            print("Recorder did not stop cleanly, killing FFmpeg")
+            self.process.kill()
+            self.process.wait()
 
         self.process = None
 

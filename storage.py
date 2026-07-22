@@ -61,3 +61,21 @@ def get_next_filename():
             return path
 
         number += 1
+
+def storage_is_writable():
+
+    if not os.path.ismount(MEDIA_PATH):
+        return False
+
+    try:
+        test_file = os.path.join(MEDIA_PATH, ".camcap_test")
+
+        with open(test_file, "w"):
+            pass
+
+        os.remove(test_file)
+
+        return True
+
+    except OSError:
+        return False

@@ -52,6 +52,20 @@ class CamCap:
 
         while True:
 
+            if not storage.storage_is_writable():
+
+                self.status.storage_available = False
+
+                if self.recording:
+                    print("\nStorage lost! Stopping recording...")
+                    self.stop_recording()
+
+                self.status.display()
+                time.sleep(1)
+                continue
+
+            self.status.storage_available = True
+
             self.status.display()
 
             print(
