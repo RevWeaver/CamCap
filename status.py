@@ -1,4 +1,5 @@
 import time
+import os
 class Status:
 
     def __init__(self):
@@ -24,18 +25,23 @@ class Status:
 
     def display(self):
 
-        print("\n======================")
+        os.system("clear")
+
+        print("======================")
         print("        CamCap")
         print("======================")
 
         print(f"Camera:    {'OK' if self.camera_connected else 'ERROR'}")
         print(f"Storage:   {'OK' if self.storage_available else 'ERROR'}")
         print(f"Free:      {self.free_space} GB")
-        print(f"State:     {'RECORDING' if self.recording else 'READY'}")
 
         if self.recording:
+            print("State:     RECORDING")
             print(f"Time:      {self.get_recording_time()}")
+        else:
+            print("State:     READY")
+
         if self.current_file:
             print(f"File:      {self.current_file}")
 
-        print("======================\n")
+        print("======================")
