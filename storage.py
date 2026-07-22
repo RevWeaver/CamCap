@@ -6,15 +6,13 @@ MEDIA_PATH = config.MEDIA_PATH
 
 CAMERA_FOLDER = os.path.join(
     MEDIA_PATH,
-    "DCIM",
-    "100CAMCAP"
+    config.CAMERA_FOLDER
 )
 
 LOG_FOLDER = os.path.join(
     MEDIA_PATH,
-    "LOGS"
+    config.LOG_FOLDER
 )
-
 
 def initialize_storage():
 
@@ -52,7 +50,7 @@ def get_next_filename():
     number = 1
 
     while True:
-        filename = f"C{number:04d}.MKV"
+        filename = f"C{number:04d}{config.VIDEO_EXTENSION}"
 
         path = os.path.join(
             CAMERA_FOLDER,

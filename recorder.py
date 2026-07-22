@@ -44,7 +44,6 @@ class Recorder:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
-
         print("Recording started")
         print(output_file)
 
