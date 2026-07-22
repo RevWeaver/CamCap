@@ -1,6 +1,7 @@
 import subprocess
 import signal
 import config
+import os
 
 
 class Recorder:
@@ -8,6 +9,7 @@ class Recorder:
     def __init__(self):
         self.process = None
         self.current_file = None
+        self.log = None
 
     def start(self, camera_device, output_file):
 
@@ -38,11 +40,20 @@ class Recorder:
 
         self.current_file = output_file
 
+        log_file = os.path.join(
+            config.MEDIA_PATH,
+            "LOGS",
+            "ffmpeg.log"
+        )
+
+        self.log = open(log_file, "a")
+
         self.process = subprocess.Popen(
             command,
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stdout=self.log,
+            stderr=self.log
+
         )
         print("Recording started")
         print(output_file)
@@ -57,6 +68,10 @@ class Recorder:
         self.process.wait()
 
         self.process = None
+
+        if self.log:
+            self.log.close()
+            self.log = None
 
         print("Recording stopped")
 
