@@ -1,3 +1,5 @@
+import sys
+import select
 import camera
 import storage
 import time
@@ -47,30 +49,42 @@ class CamCap:
             return
 
         print("CamCap ready")
-        self.status.display()
 
         while True:
 
-            command = input(
-                "\nCommand (r=record, s=stop, q=quit): "
-            )
-
-            if command == "r":
-                self.start_recording()
-
-            elif command == "s":
-                self.stop_recording()
-
-            elif command == "q":
-                print("Shutting down CamCap")
-                self.stop_recording()
-                break
-
-            else:
-                print("Unknown command")
-
             self.status.display()
 
+            print(
+                "\nCommand (r=record, s=stop, q=quit): ",
+                end="",
+                flush=True
+            )
+
+            ready, _, _ = select.select(
+                [sys.stdin],
+                [],
+                [],
+                1
+            )
+
+            if ready:
+                command = sys.stdin.readline().strip()
+
+                if command == "r":
+                    self.start_recording()
+
+                elif command == "s":
+                    self.stop_recording()
+
+                elif command == "q":
+                    print("Shutting down CamCap")
+                    self.stop_recording()
+                    break
+
+                else:
+                    print("Unknown command")
+
+            time.sleep(0.1)
     def start_recording(self):
 
         if not self.camera_ready:
