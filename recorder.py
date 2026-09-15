@@ -1,5 +1,6 @@
 import subprocess
 import signal
+import time
 import config
 import os
 
@@ -10,12 +11,23 @@ class Recorder:
         self.process = None
         self.current_file = None
         self.log = None
+        self.temp_file = None
 
-    def start(self, camera_device, output_file):
+    def start(self, camera_device, output_file, log_file):
 
-        if self.process:
+        if self.process and self.process.poll() is None:
             print("Already recording")
             return
+
+        if self.log:
+            self.log.close()
+            self.log = None
+
+        self.process = None
+        self.current_file = output_file
+
+        temp_file = output_file + ".tmp"
+        self.temp_file = temp_file
 
         command = [
             "ffmpeg",
@@ -29,22 +41,18 @@ class Recorder:
             f"{config.VIDEO_WIDTH}x{config.VIDEO_HEIGHT}",
             "-i",
             camera_device,
+            "-vf",
+            "yadif",
             "-pix_fmt",
             "yuv420p",
             "-c:v",
             config.VIDEO_CODEC,
             "-b:v",
             config.VIDEO_BITRATE,
-            output_file
+            "-f",
+            "matroska",
+            temp_file
         ]
-
-        self.current_file = output_file
-
-        log_file = os.path.join(
-            config.MEDIA_PATH,
-            "LOGS",
-            "ffmpeg.log"
-        )
 
         self.log = open(log_file, "a")
 
@@ -66,15 +74,29 @@ class Recorder:
 
         self.process.send_signal(signal.SIGINT)
 
+        stop_started = time.time()
+
         try:
-            self.process.wait(timeout=5)
+            self.process.wait(timeout=config.STOP_TIMEOUT_SECONDS)
+            print(f"FFmpeg stopped cleanly in {time.time() - stop_started:.1f}s")
 
         except subprocess.TimeoutExpired:
-            print("Recorder did not stop cleanly, killing FFmpeg")
+            print(
+                f"Recorder did not stop cleanly within "
+                f"{config.STOP_TIMEOUT_SECONDS}s, killing FFmpeg"
+            )
             self.process.kill()
             self.process.wait()
 
         self.process = None
+
+        if self.temp_file and os.path.exists(self.temp_file):
+            os.rename(
+                self.temp_file,
+                self.current_file
+            )
+
+        self.temp_file = None
 
         if self.log:
             self.log.close()
@@ -84,4 +106,7 @@ class Recorder:
 
     def is_recording(self):
 
-        return self.process is not None
+        if self.process is None:
+            return False
+
+        return self.process.poll() is None

@@ -1,10 +1,10 @@
 import sys
 import select
 import camera
-import storage
 import time
 from status import Status
 from recorder import Recorder
+from drivemanager import DriveManager
 
 
 class CamCap:
@@ -13,6 +13,8 @@ class CamCap:
         self.storage_ready = False
         self.camera_ready = False
         self.camera_device = None
+
+        self.drive = DriveManager()
 
         self.recorder = Recorder()
         self.recording = False
@@ -24,11 +26,16 @@ class CamCap:
         print("CamCap starting...")
 
         print("Checking storage...")
-        self.storage_ready = storage.initialize_storage()
+
+        self.storage_ready = self.drive.mount_drive()
+
+        if self.storage_ready:
+            self.storage_ready = self.drive.initialize()
+
         self.status.storage_available = self.storage_ready
 
         if self.storage_ready:
-            self.status.free_space = storage.get_free_space()
+            self.status.free_space = self.drive.get_free_space()
 
         print("Checking camera...")
         self.camera_device = camera.get_camera_device()
@@ -52,7 +59,8 @@ class CamCap:
 
         while True:
 
-            if not storage.storage_is_writable():
+            # Storage watchdog
+            if not self.drive.storage_is_writable():
 
                 self.status.storage_available = False
 
@@ -65,6 +73,16 @@ class CamCap:
                 continue
 
             self.status.storage_available = True
+
+            # Recorder watchdog
+            if self.recording and not self.recorder.is_recording():
+
+                print("\nRecorder stopped unexpectedly!")
+
+                self.recording = False
+                self.status.recording = False
+                self.status.recording_start = None
+                self.status.current_file = None
 
             self.status.display()
 
@@ -99,6 +117,7 @@ class CamCap:
                     print("Unknown command")
 
             time.sleep(0.1)
+
     def start_recording(self):
 
         if not self.camera_ready:
@@ -109,14 +128,15 @@ class CamCap:
             print("Already recording")
             return
 
-        filename = storage.get_next_filename()
+        filename = self.drive.get_next_filename()
 
         print("Starting recording:")
         print(filename)
 
         self.recorder.start(
             self.camera_device,
-            filename
+            filename,
+            self.drive.get_log_file()
         )
 
         self.recording = True
