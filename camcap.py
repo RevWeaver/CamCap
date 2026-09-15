@@ -68,6 +68,9 @@ class CamCap:
                     print("\nStorage lost! Stopping recording...")
                     self.stop_recording()
 
+                if self.drive.mount_drive():
+                    self.drive.initialize()
+
                 self.status.display()
                 time.sleep(1)
                 continue

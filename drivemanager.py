@@ -149,7 +149,30 @@ class DriveManager:
     def mount_drive(self):
 
         if self.is_mounted():
-            return True
+
+            if self.storage_is_writable():
+                return True
+
+            # The mount table still shows something at MOUNT_POINT, but it
+            # doesn't actually work (e.g. the drive was unplugged without a
+            # clean unmount). Clear the stale mount before trying to mount
+            # whatever drive is actually connected now.
+            print("Existing mount is stale, clearing it...")
+
+            try:
+
+                subprocess.run(
+                    [
+                        "sudo",
+                        "umount",
+                        self.MOUNT_POINT
+                    ],
+                    check=True
+                )
+
+            except subprocess.CalledProcessError:
+                print("Failed to clear stale mount")
+                return False
 
         device = self.detect_drive()
 

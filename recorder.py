@@ -90,19 +90,29 @@ class Recorder:
 
         self.process = None
 
-        if self.temp_file and os.path.exists(self.temp_file):
-            os.rename(
-                self.temp_file,
-                self.current_file
-            )
+        try:
+            if self.temp_file and os.path.exists(self.temp_file):
+                os.rename(
+                    self.temp_file,
+                    self.current_file
+                )
+                print("Recording stopped")
+            else:
+                print("Recording stopped (no temp file to finalize)")
+
+        except OSError as error:
+            print(f"Could not finalize recording, storage may be gone: {error}")
 
         self.temp_file = None
 
-        if self.log:
-            self.log.close()
-            self.log = None
+        try:
+            if self.log:
+                self.log.close()
 
-        print("Recording stopped")
+        except OSError as error:
+            print(f"Could not close ffmpeg log cleanly: {error}")
+
+        self.log = None
 
     def is_recording(self):
 
