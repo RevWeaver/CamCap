@@ -24,13 +24,19 @@ class DriveManager:
             print("No recording drive mounted.")
             return False
 
-        os.makedirs(self.CAMERA_FOLDER, exist_ok=True)
-        os.makedirs(self.LOG_FOLDER, exist_ok=True)
-        os.makedirs(self.CONFIG_FOLDER, exist_ok=True)
+        try:
 
-        if not os.path.exists(self.MARKER_FILE):
-            with open(self.MARKER_FILE, "w") as marker:
-                marker.write("CamCap Drive\n")
+            os.makedirs(self.CAMERA_FOLDER, exist_ok=True)
+            os.makedirs(self.LOG_FOLDER, exist_ok=True)
+            os.makedirs(self.CONFIG_FOLDER, exist_ok=True)
+
+            if not os.path.exists(self.MARKER_FILE):
+                with open(self.MARKER_FILE, "w") as marker:
+                    marker.write("CamCap Drive\n")
+
+        except OSError as e:
+            print(f"Failed to prepare drive: {e}")
+            return False
 
         self.ready = True
         return True
@@ -198,4 +204,34 @@ class DriveManager:
             print("Failed to mount drive")
             return False
 
-        return True
+        if self.storage_is_writable():
+            return True
+
+        # A drive formatted elsewhere (or freshly mkfs'd) is typically
+        # owned by root, unlike an SD card that just works in a camera.
+        # Fix ownership once instead of requiring manual setup per drive.
+        print("Drive mounted but not writable, fixing ownership...")
+
+        try:
+
+            subprocess.run(
+                [
+                    "sudo",
+                    "chown",
+                    f"{os.getuid()}:{os.getgid()}",
+                    self.MOUNT_POINT
+                ],
+                check=True
+            )
+
+        except subprocess.CalledProcessError:
+            print("Failed to fix drive ownership")
+            subprocess.run(["sudo", "umount", self.MOUNT_POINT])
+            return False
+
+        if self.storage_is_writable():
+            return True
+
+        print("Drive still not writable after fixing ownership")
+        subprocess.run(["sudo", "umount", self.MOUNT_POINT])
+        return False
