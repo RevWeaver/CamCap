@@ -120,3 +120,24 @@ class Recorder:
             return False
 
         return self.process.poll() is None
+
+    def kill_without_finalize(self):
+        """Force-kill without renaming the temp file - for when the
+        encoder never produced usable output (e.g. a stalled device
+        handoff right after the camera changes hands) and the temp file
+        isn't a real recording worth keeping."""
+
+        if self.process and self.process.poll() is None:
+            self.process.kill()
+            self.process.wait()
+
+        if self.temp_file and os.path.exists(self.temp_file):
+            os.remove(self.temp_file)
+
+        self.process = None
+        self.temp_file = None
+        self.current_file = None
+
+        if self.log:
+            self.log.close()
+            self.log = None
