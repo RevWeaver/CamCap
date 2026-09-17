@@ -676,8 +676,15 @@ class MainWindow(QWidget):
         self._stop_preview()
         if self.playback_worker is not None:
             self.playback_worker.stop()
-        if self.recording:
+
+        if self.stopping:
+            # A stop is already in flight (e.g. the storage watchdog
+            # triggered one) - wait for it instead of calling
+            # Recorder.stop() again concurrently from this thread.
+            self._stop_worker.wait()
+        elif self.recording:
             self.recorder.stop()
+
         event.accept()
 
 
