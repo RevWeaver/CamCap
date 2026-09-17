@@ -487,6 +487,28 @@ class MainWindow(QWidget):
             print("Recorder stopped unexpectedly!")
             self._enter_idle_state()
 
+        camera_device = camera.get_camera_device()
+
+        if camera_device:
+
+            if not self.status.camera_connected:
+                print("Camera reconnected")
+                self.camera_device = camera_device
+                if not self.recording and not self.stopping:
+                    self._start_preview()
+
+            self.status.camera_connected = True
+
+        else:
+
+            if self.status.camera_connected:
+                print("Camera disconnected!")
+                self._stop_preview()
+                self.video_label.setText("No camera detected")
+                self.camera_device = None
+
+            self.status.camera_connected = False
+
         self._refresh_status_label()
 
     def _refresh_status_label(self):
