@@ -12,6 +12,13 @@ class DriveManager:
     CONFIG_FOLDER = os.path.join(ROOT_FOLDER, "CONFIG")
     MARKER_FILE = os.path.join(ROOT_FOLDER, ".camcap_drive")
 
+    # ffmpeg's own log deliberately does NOT live on the removable drive:
+    # a disconnect is exactly the failure this log is most needed to
+    # diagnose, and a vanished drive would take the log with it.
+    LOCAL_LOG_FOLDER = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "logs"
+    )
+
     def __init__(self):
         self.ready = False
 
@@ -82,8 +89,10 @@ class DriveManager:
 
     def get_log_file(self):
 
+        os.makedirs(self.LOCAL_LOG_FOLDER, exist_ok=True)
+
         return os.path.join(
-            self.LOG_FOLDER,
+            self.LOCAL_LOG_FOLDER,
             "ffmpeg.log"
         )
 
