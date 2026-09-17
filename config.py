@@ -16,6 +16,14 @@ VIDEO_BITRATE = "8M"
 
 # Encoder
 VIDEO_CODEC = "libx264"
+# x264 preset. Hardware-tested 2026-09-17: the default ("medium") pushes
+# the Pi 4B into real thermal throttling within ~90s of sustained 1080p30
+# recording (measured up to 85C, throttled=0xe0008), and once throttled
+# the ffmpeg shutdown drain can exceed STOP_TIMEOUT_SECONDS, forcing a
+# SIGKILL that leaves the recording without a finalized duration/trailer.
+# "veryfast" held steady at 62-70C over a 3-minute recording (no
+# throttling) and stopped cleanly in ~4s instead of being killed.
+VIDEO_PRESET = "veryfast"
 
 # Recording
 VIDEO_EXTENSION = ".MKV"

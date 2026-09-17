@@ -47,6 +47,8 @@ class Recorder:
             "yuv420p",
             "-c:v",
             config.VIDEO_CODEC,
+            "-preset",
+            config.VIDEO_PRESET,
             "-b:v",
             config.VIDEO_BITRATE,
             "-f",
