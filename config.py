@@ -5,9 +5,6 @@ MEDIA_PATH = "/media/CAMCAP"
 CAMERA_FOLDER = "DCIM/100CAMCAP"
 LOG_FOLDER = "LOGS"
 
-# Camera
-CAMERA_DEVICE = "/dev/v4l/by-id/usb-Elgato_Cam_Link_4K_00016DFB11000-video-index0"
-
 # Video settings
 VIDEO_WIDTH = 1920
 VIDEO_HEIGHT = 1080
