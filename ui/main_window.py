@@ -35,6 +35,9 @@ PREVIEW_HEIGHT = 270
 PREVIEW_FRAME_SIZE = PREVIEW_WIDTH * PREVIEW_HEIGHT * 3
 
 STORAGE_WATCHDOG_MS = 1000
+# Minimum gap between automatic restarts of a preview whose ffmpeg died,
+# so a persistently failing device isn't hammered with rapid re-opens.
+PREVIEW_RESTART_MIN_INTERVAL_S = 5
 
 # The USB capture device occasionally hands a fresh opener corrupted
 # buffers right after the previous process (preview or recorder) releases
@@ -158,6 +161,7 @@ class MainWindow(QWidget):
         self.stopping = False
         self.recording_retried = False
         self.preview = None
+        self.last_preview_restart = 0.0
 
         self.playback_worker = None
         self.playback_path = None
@@ -496,6 +500,21 @@ class MainWindow(QWidget):
                 self.camera_device = camera_device
                 if not self.recording and not self.stopping:
                     self._start_preview()
+
+            # A fast unplug/replug can happen entirely between two ticks, so
+            # the branch above never sees the disconnect - but ffmpeg still
+            # exited when the device vanished, leaving a dead preview.
+            # Restart it, rate-limited: rapid open/close cycling is what
+            # wedges the Cam Link's UVC driver (see project notes).
+            elif (self.preview is not None and self.preview.isFinished()
+                    and not self.recording and not self.stopping
+                    and time.monotonic() - self.last_preview_restart
+                        >= PREVIEW_RESTART_MIN_INTERVAL_S):
+                print("Preview died - restarting")
+                self.last_preview_restart = time.monotonic()
+                self.camera_device = camera_device
+                self._stop_preview()
+                self._start_preview()
 
             self.status.camera_connected = True
 
