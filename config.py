@@ -12,15 +12,19 @@ FRAME_RATE = 30
 VIDEO_BITRATE = "8M"
 
 # Encoder
-VIDEO_CODEC = "libx264"
-# x264 preset. Hardware-tested 2026-09-17: the default ("medium") pushes
-# the Pi 4B into real thermal throttling within ~90s of sustained 1080p30
-# recording (measured up to 85C, throttled=0xe0008), and once throttled
-# the ffmpeg shutdown drain can exceed STOP_TIMEOUT_SECONDS, forcing a
-# SIGKILL that leaves the recording without a finalized duration/trailer.
-# "veryfast" held steady at 62-70C over a 3-minute recording (no
-# throttling) and stopped cleanly in ~4s instead of being killed.
-VIDEO_PRESET = "veryfast"
+# Pi 4 hardware H.264 encoder. Software libx264 can't keep up with real
+# camera footage here: hardware-tested 2026-09-25 on a detailed scene,
+# "veryfast" managed ~11fps and even "ultrafast" only ~24fps (all four
+# cores pegged), so recordings dropped most frames and stalled long enough
+# to trip the start-up health check. h264_v4l2m2m held ~29fps over a
+# 3-minute recording, ~250% CPU (mostly yadif), stopped cleanly in ~3s,
+# with no kernel errors - including repeated start/stop cycles. (An older
+# bcm2835_codec kernel Oops is why this was previously avoided; it did not
+# reproduce. If it ever does, dmesg will show bcm2835_codec/mmal errors.)
+VIDEO_CODEC = "h264_v4l2m2m"
+# Keyframe every 2s (YouTube's recommendation). The hardware encoder's
+# default is every 12 frames, which wastes bitrate on keyframes.
+KEYFRAME_INTERVAL = 60
 
 # Recording
 VIDEO_EXTENSION = ".MKV"
