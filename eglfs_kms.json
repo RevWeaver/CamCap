@@ -1,0 +1,8 @@
+{
+    "device": "/dev/dri/card1",
+    "outputs": [
+        { "name": "DSI1", "primary": true },
+        { "name": "HDMI1", "mode": "off" },
+        { "name": "HDMI2", "mode": "off" }
+    ]
+}

@@ -1,0 +1,5 @@
+# CamCap: the 5" DSI panel is natively portrait but the UI is rotated 90
+# degrees (QT_QPA_EGLFS_ROTATION=90 in camcap.service). Qt 5.15's libinput
+# backend doesn't rotate touch to match, so rotate it here. Matrix derived
+# from real taps: UI top-left -> native (71,1226), UI top-right -> (64,54).
+KERNEL=="event*", ATTRS{name}=="Goodix Capacitive TouchScreen", ENV{LIBINPUT_CALIBRATION_MATRIX}="0 -1 1 1 0 0"

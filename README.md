@@ -15,9 +15,11 @@ nice-to-have. 4K is explicitly out of scope.
 
 ```
 Sony HDR-FX7 (1080i, HDMI) -> Elgato Cam Link 4K (USB) -> Raspberry Pi
-    -> ffmpeg (yadif deinterlace, libx264 "veryfast") -> USB SSD (MKV)
+    -> ffmpeg (yadif deinterlace, Pi hardware H.264 encoder) -> USB SSD (MKV)
 ```
 
+- The Cam Link must be on a USB 3 port (or USB 3 hub): uncompressed 1080p30
+  doesn't fit through USB 2. The status bar warns if it's on a slow port.
 - Capture device is resolved via the Cam Link's persistent
   `/dev/v4l/by-id/...` path (`camera.py`), not a raw `/dev/videoN` index,
   since those renumber across reboots/USB resets.
@@ -60,6 +62,21 @@ separately for backend access. `main.py` handles SIGTERM/SIGINT so
 recording cleanly instead of leaving it stranded as a `.tmp` file — this
 only covers graceful shutdowns, not an abrupt power cut.
 
+### System files (`system/`)
+
+Copies of everything installed outside the repo, so a fresh Pi can be set
+up from git:
+
+| File | Installed to | Purpose |
+|---|---|---|
+| `camcap.service` | `/etc/systemd/system/` | Runs the app on boot (eglfs, pinned to the DSI panel) |
+| `camcap-touch.service` + `camcap-touch-bind.sh` | `/etc/systemd/system/` (script runs from the repo) | Re-binds the Goodix touch controller, which fails its boot probe because it's probed before the panel powers up |
+| `99-camcap-touch.rules` | `/etc/udev/rules.d/` | Rotates touch input to match the 90° rotated UI (Qt 5.15 doesn't) |
+
+`eglfs_kms.json` (repo root) is referenced by `camcap.service` in place and
+turns HDMI off while the app runs so Qt can't put the UI on an external
+monitor; `sudo systemctl stop camcap` gives the console back on HDMI.
+
 ## Known hardware quirk
 
 The Elgato Cam Link 4K's UVC driver can wedge under heavy rapid open/close
@@ -75,6 +92,4 @@ reliability refactor and is stale.
 
 ## Not yet built
 
-- Dedicated small on-camera display (touchscreen mounted on the accessory
-  rail) — currently developed/tested against HDMI output.
 - Physical power button wired to trigger a clean shutdown.

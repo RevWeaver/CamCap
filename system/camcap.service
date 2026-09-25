@@ -1,0 +1,43 @@
+[Unit]
+Description=CamCap appliance UI
+After=local-fs.target camcap-touch.service
+# Touch is attached by camcap-touch.service first; Wants (not Requires) so
+# the recorder still starts even if touch fails.
+Wants=camcap-touch.service
+# Cap restarts so a persistent failure can't turn into a rapid open/close
+# loop against the Cam Link - the USB UVC driver is known to wedge under
+# heavy rapid open/close cycling (see project notes), so retrying forever
+# at high frequency risks causing the exact hardware fault it's trying to
+# recover from.
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=deposit150
+Group=deposit150
+WorkingDirectory=/home/deposit150/CamCap
+# Pin the GUI to the DSI touchscreen: eglfs_kms.json turns the HDMI
+# connectors "off" for Qt so it can't auto-pick an external monitor. Qt 5
+# uses its own connector names there (DSI1, HDMI1), not the kernel's
+# DSI-1/HDMI-A-1 - with the kernel names the config silently matches nothing.
+# "off" really disables HDMI while the app runs (no signal); backend access
+# is SSH, or `sudo systemctl stop camcap` to get the console back on HDMI.
+# Qt 5.15 ignores per-output "rotation" in that JSON, so rotation (the panel
+# is natively 720x1280 portrait) is set with QT_QPA_EGLFS_ROTATION instead.
+# Unbuffered so print() diagnostics reach the journal live, not only at exit.
+Environment=PYTHONUNBUFFERED=1
+Environment=QT_QPA_PLATFORM=eglfs
+Environment=QT_QPA_EGLFS_KMS_CONFIG=/home/deposit150/CamCap/eglfs_kms.json
+Environment=QT_QPA_EGLFS_ROTATION=90
+ExecStart=/usr/bin/python3 /home/deposit150/CamCap/main.py
+Restart=on-failure
+RestartSec=5
+# On stop/poweroff/reboot, main.py catches SIGTERM and finalizes an
+# in-progress recording (up to config.STOP_TIMEOUT_SECONDS = 30s to drain
+# ffmpeg, plus a few seconds to stop the preview reader). Give it real
+# margin above that worst case instead of relying on systemd's default.
+TimeoutStopSec=45
+
+[Install]
+WantedBy=multi-user.target

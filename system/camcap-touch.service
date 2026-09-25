@@ -1,0 +1,11 @@
+[Unit]
+Description=CamCap touchscreen bind (works around Goodix probing before the DSI panel powers up)
+Before=camcap.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/home/deposit150/CamCap/system/camcap-touch-bind.sh
+
+[Install]
+WantedBy=multi-user.target
