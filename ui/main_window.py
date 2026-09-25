@@ -532,8 +532,16 @@ class MainWindow(QWidget):
 
     def _refresh_status_label(self):
 
+        camera_text = "OK" if self.status.camera_connected else "ERROR"
+
+        # A Cam Link on a USB 2 port/hub still previews, but can't record -
+        # say so up front instead of letting RECORD fail after a few seconds.
+        usb_speed = camera.get_camera_usb_speed()
+        if usb_speed is not None and usb_speed < 5000:
+            camera_text = "SLOW USB PORT - use a USB 3 port"
+
         parts = [
-            f"Cam: {'OK' if self.status.camera_connected else 'ERROR'}",
+            f"Cam: {camera_text}",
             f"Storage: {'OK' if self.status.storage_available else 'ERROR'}",
             f"Free: {self.status.free_space} GB",
         ]
