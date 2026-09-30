@@ -547,6 +547,10 @@ class MainWindow(QWidget):
             f"Free: {self.status.free_space} GB",
         ]
 
+        cpu_temp = get_cpu_temp()
+        if cpu_temp is not None:
+            parts.append(f"Temp: {cpu_temp:.0f}\u00b0C")
+
         ip_address = get_ip_address()
         if ip_address:
             parts.append(f"IP: {ip_address}")
@@ -738,6 +742,17 @@ def get_ip_address():
         return None
     finally:
         sock.close()
+
+
+def get_cpu_temp():
+    """The Pi's SoC temperature in degrees C, or None if it can't be read.
+    Same sensor vcgencmd measure_temp reports; the firmware starts
+    throttling around 80C."""
+    try:
+        with open("/sys/class/thermal/thermal_zone0/temp") as f:
+            return int(f.read().strip()) / 1000
+    except (OSError, ValueError):
+        return None
 
 
 def _format_time(seconds):
