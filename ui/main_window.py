@@ -1,4 +1,5 @@
 import os
+import socket
 import subprocess
 import time
 from datetime import datetime
@@ -546,6 +547,10 @@ class MainWindow(QWidget):
             f"Free: {self.status.free_space} GB",
         ]
 
+        ip_address = get_ip_address()
+        if ip_address:
+            parts.append(f"IP: {ip_address}")
+
         if self.recording:
             parts.append(f"REC {self.status.get_recording_time()}")
 
@@ -719,6 +724,20 @@ def make_title_label(text):
     label = QLabel(text)
     label.setStyleSheet("color: white; font-size: 24px; font-weight: bold;")
     return label
+
+
+def get_ip_address():
+    """The Pi's IP on whichever interface has the default route, or None
+    if there's no network. connect() on a UDP socket sends no packets -
+    it just asks the kernel which source address it would route from."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("8.8.8.8", 80))
+        return sock.getsockname()[0]
+    except OSError:
+        return None
+    finally:
+        sock.close()
 
 
 def _format_time(seconds):
