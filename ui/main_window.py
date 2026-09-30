@@ -1,3 +1,4 @@
+import html
 import os
 import socket
 import subprocess
@@ -46,6 +47,12 @@ PREVIEW_RESTART_MIN_INTERVAL_S = 5
 # no visible error. This checks that a recording is actually producing
 # data shortly after starting, and self-heals with one retry if not.
 RECORDING_HEALTH_CHECK_MS = 2000
+
+# Status bar temperature colours. The Pi firmware soft-throttles at 80C;
+# with the fan a long recording sits around 48-50C (measured 2026-09-30),
+# so orange means cooling isn't keeping up and red means it's throttling.
+TEMP_WARN_C = 70
+TEMP_HOT_C = 80
 
 BUTTON_STYLE = "font-size: 28px; font-weight: bold; color: white;"
 RECORD_COLOR = "background-color: #c0392b;"
@@ -208,6 +215,7 @@ class MainWindow(QWidget):
         self.video_label.setMinimumSize(320, 180)
 
         self.status_label = QLabel("")
+        self.status_label.setTextFormat(Qt.RichText)
         self.status_label.setStyleSheet("color: white; font-size: 18px;")
 
         self.record_button = make_button("RECORD", RECORD_COLOR)
@@ -541,24 +549,30 @@ class MainWindow(QWidget):
         if usb_speed is not None and usb_speed < 5000:
             camera_text = "SLOW USB PORT - use a USB 3 port"
 
+        # Rich text so the temperature can be coloured - escape everything.
         parts = [
-            f"Cam: {camera_text}",
-            f"Storage: {'OK' if self.status.storage_available else 'ERROR'}",
-            f"Free: {self.status.free_space} GB",
+            html.escape(f"Cam: {camera_text}"),
+            html.escape(f"Storage: {'OK' if self.status.storage_available else 'ERROR'}"),
+            html.escape(f"Free: {self.status.free_space} GB"),
         ]
 
         cpu_temp = get_cpu_temp()
         if cpu_temp is not None:
-            parts.append(f"Temp: {cpu_temp:.0f}\u00b0C")
+            temp_text = html.escape(f"Temp: {cpu_temp:.0f}\u00b0C")
+            if cpu_temp >= TEMP_HOT_C:
+                temp_text = f'<span style="color: #e74c3c;">{temp_text}</span>'
+            elif cpu_temp >= TEMP_WARN_C:
+                temp_text = f'<span style="color: #f39c12;">{temp_text}</span>'
+            parts.append(temp_text)
 
         ip_address = get_ip_address()
         if ip_address:
-            parts.append(f"IP: {ip_address}")
+            parts.append(html.escape(f"IP: {ip_address}"))
 
         if self.recording:
-            parts.append(f"REC {self.status.get_recording_time()}")
+            parts.append(html.escape(f"REC {self.status.get_recording_time()}"))
 
-        self.status_label.setText("   ".join(parts))
+        self.status_label.setText("&nbsp;&nbsp;&nbsp;".join(parts))
 
     # ------------------------------------------------------------------
     # Review list
