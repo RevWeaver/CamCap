@@ -62,6 +62,11 @@ separately for backend access. `main.py` handles SIGTERM/SIGINT so
 recording cleanly instead of leaving it stranded as a `.tmp` file — this
 only covers graceful shutdowns, not an abrupt power cut.
 
+Without SSH, plug a USB keyboard into the Pi and press **Ctrl+Alt+Q**: the
+app finalizes any in-progress recording, exits, and leaves the tty1 login
+console on screen (press Enter for a fresh prompt). It stays stopped until
+`sudo systemctl start camcap` or a reboot.
+
 ### System files (`system/`)
 
 Copies of everything installed outside the repo, so a fresh Pi can be set

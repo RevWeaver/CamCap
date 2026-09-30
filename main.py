@@ -4,14 +4,33 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "ui"))
 
-from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QKeySequence
+from PyQt5.QtWidgets import QApplication, QShortcut
 from main_window import MainWindow
 
 
 app = QApplication(sys.argv)
 window = MainWindow()
 window.showFullScreen()
+
+# Ctrl+Alt+Q on a USB keyboard exits to the text console on the
+# touchscreen - a way in when there's no SSH. Goes through the same
+# window.close() as SIGTERM, so an in-progress recording is finalized
+# first. The clean exit (code 0) means systemd's Restart=on-failure
+# leaves it stopped; `sudo systemctl start camcap` (or a reboot) brings
+# the app back.
+EXIT_TO_CONSOLE_KEYS = "Ctrl+Alt+Q"
+
+
+def _exit_to_console():
+    print(f"{EXIT_TO_CONSOLE_KEYS} pressed - exiting to console")
+    window.close()
+
+
+exit_shortcut = QShortcut(QKeySequence(EXIT_TO_CONSOLE_KEYS), window)
+exit_shortcut.setContext(Qt.ApplicationShortcut)
+exit_shortcut.activated.connect(_exit_to_console)
 
 # A plain SIGTERM (e.g. `systemctl stop camcap`, `sudo poweroff`/`reboot`)
 # would otherwise kill this process outright without ever running
