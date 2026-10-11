@@ -13,7 +13,7 @@ class Recorder:
         self.log = None
         self.temp_file = None
 
-    def start(self, camera_device, output_file, log_file):
+    def start(self, camera_device, output_file, log_file, mic_device=None):
 
         if self.process and self.process.poll() is None:
             print("Already recording")
@@ -41,6 +41,38 @@ class Recorder:
             f"{config.VIDEO_WIDTH}x{config.VIDEO_HEIGHT}",
             "-i",
             camera_device,
+        ]
+
+        # Mic is optional - no receiver plugged in just means a silent
+        # (video-only) recording, not a failed one. If the receiver drops
+        # out mid-recording, ffmpeg logs "ALSA read error: No such device"
+        # and carries on recording video (hardware-tested 2026-10-11);
+        # audio does not resume if it's plugged back in.
+        if mic_device:
+            command += [
+                "-f",
+                "alsa",
+                "-thread_queue_size",
+                "1024",
+                "-c:a",
+                config.MIC_INPUT_CODEC,
+                "-channels",
+                str(config.MIC_CHANNELS),
+                "-sample_rate",
+                str(config.MIC_SAMPLE_RATE),
+                "-i",
+                mic_device,
+                "-map",
+                "0:v",
+                "-map",
+                "1:a",
+                "-c:a",
+                config.AUDIO_CODEC,
+                "-b:a",
+                config.AUDIO_BITRATE,
+            ]
+
+        command += [
             "-vf",
             "yadif",
             "-pix_fmt",
@@ -65,7 +97,7 @@ class Recorder:
             stderr=self.log
 
         )
-        print("Recording started")
+        print("Recording started" + (f" with mic {mic_device}" if mic_device else " (no mic)"))
         print(output_file)
 
     def stop(self):

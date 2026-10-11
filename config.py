@@ -26,6 +26,17 @@ VIDEO_CODEC = "h264_v4l2m2m"
 # default is every 12 frames, which wastes bitrate on keyframes.
 KEYFRAME_INTERVAL = 60
 
+# Audio (DJI Mic Mini receiver over USB)
+# The receiver only offers 48kHz, stereo, packed 24-bit (S24_3LE) - ffmpeg's
+# ALSA input defaults to 16-bit and fails to open it ("cannot set sample
+# format"), so the input codec has to be given explicitly. In mono mode
+# with one transmitter, both channels carry the same signal.
+MIC_SAMPLE_RATE = 48000
+MIC_CHANNELS = 2
+MIC_INPUT_CODEC = "pcm_s24le"
+AUDIO_CODEC = "aac"
+AUDIO_BITRATE = "256k"
+
 # Recording
 VIDEO_EXTENSION = ".MKV"
 

@@ -21,6 +21,7 @@ from PyQt5.QtWidgets import (
 
 import camera
 import config
+import microphone
 import playback
 from drivemanager import DriveManager
 from recorder import Recorder
@@ -168,6 +169,11 @@ class MainWindow(QWidget):
         self.recording = False
         self.stopping = False
         self.recording_retried = False
+        # Mic the current recording was started with (None = video only),
+        # and whether it has dropped out since - audio doesn't resume on
+        # replug, so once lost it stays lost for the rest of the recording.
+        self.recording_mic = None
+        self.mic_lost = False
         self.preview = None
         self.last_preview_restart = 0.0
 
@@ -379,11 +385,14 @@ class MainWindow(QWidget):
         self.video_label.setText("RECORDING")
 
         filename = self.drive.get_next_filename()
+        self.recording_mic = microphone.get_mic_device()
+        self.mic_lost = False
 
         self.recorder.start(
             self.camera_device,
             filename,
-            self.drive.get_log_file()
+            self.drive.get_log_file(),
+            self.recording_mic
         )
 
         self.recording = True
@@ -422,11 +431,14 @@ class MainWindow(QWidget):
         self.recording_retried = True
 
         filename = self.drive.get_next_filename()
+        self.recording_mic = microphone.get_mic_device()
+        self.mic_lost = False
 
         self.recorder.start(
             self.camera_device,
             filename,
-            self.drive.get_log_file()
+            self.drive.get_log_file(),
+            self.recording_mic
         )
 
         self.status.current_file = filename
@@ -460,6 +472,8 @@ class MainWindow(QWidget):
     def _enter_idle_state(self):
 
         self.recording = False
+        self.recording_mic = None
+        self.mic_lost = False
         self.status.recording = False
         self.status.current_file = None
         self.status.recording_start = None
@@ -537,6 +551,10 @@ class MainWindow(QWidget):
 
             self.status.camera_connected = False
 
+        if self.recording_mic and not self.mic_lost and not microphone.mic_connected():
+            print("Mic disconnected during recording - rest of recording has no audio")
+            self.mic_lost = True
+
         self._refresh_status_label()
 
     def _refresh_status_label(self):
@@ -554,6 +572,7 @@ class MainWindow(QWidget):
             html.escape(f"Cam: {camera_text}"),
             html.escape(f"Storage: {'OK' if self.status.storage_available else 'ERROR'}"),
             html.escape(f"Free: {self.status.free_space} GB"),
+            self._mic_status_html(),
         ]
 
         cpu_temp = get_cpu_temp()
@@ -573,6 +592,19 @@ class MainWindow(QWidget):
             parts.append(html.escape(f"REC {self.status.get_recording_time()}"))
 
         self.status_label.setText("&nbsp;&nbsp;&nbsp;".join(parts))
+
+    def _mic_status_html(self):
+
+        if self.recording:
+            if self.mic_lost:
+                return '<span style="color: #e74c3c;">Mic: LOST</span>'
+            if not self.recording_mic:
+                return '<span style="color: #f39c12;">Mic: NONE</span>'
+            return "Mic: OK"
+
+        if microphone.mic_connected():
+            return "Mic: OK"
+        return '<span style="color: #f39c12;">Mic: NONE</span>'
 
     # ------------------------------------------------------------------
     # Review list
