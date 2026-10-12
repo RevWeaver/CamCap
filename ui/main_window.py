@@ -5,8 +5,8 @@ import subprocess
 import time
 from datetime import datetime
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QSize, QRectF
+from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor, QIcon
 from PyQt5.QtWidgets import (
     QWidget,
     QLabel,
@@ -204,6 +204,7 @@ class MainWindow(QWidget):
         self.stack.addWidget(self._build_camera_page())
         self.stack.addWidget(self._build_review_page())
         self.stack.addWidget(self._build_playback_page())
+        self.stack.addWidget(self._build_power_page())
 
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -233,7 +234,16 @@ class MainWindow(QWidget):
         self.review_button = make_button("REVIEW", NEUTRAL_COLOR)
         self.review_button.clicked.connect(self._open_review)
 
+        # Far left, away from RECORD, so it isn't hit by accident.
+        self.power_button = QPushButton()
+        self.power_button.setIcon(make_power_icon(56))
+        self.power_button.setIconSize(QSize(56, 56))
+        self.power_button.setFixedSize(90, 90)
+        self.power_button.setStyleSheet(NEUTRAL_COLOR)
+        self.power_button.clicked.connect(self._open_power_menu)
+
         controls = QHBoxLayout()
+        controls.addWidget(self.power_button, stretch=0)
         controls.addWidget(self.status_label, stretch=1)
         controls.addWidget(self.review_button, stretch=0)
         controls.addWidget(self.record_button, stretch=0)
@@ -302,6 +312,36 @@ class MainWindow(QWidget):
         layout.addWidget(self.playback_label, stretch=1)
         layout.addLayout(seek_row)
         layout.addLayout(controls)
+        page.setLayout(layout)
+
+        return page
+
+    def _build_power_page(self):
+
+        page = QWidget()
+
+        self.power_message_label = QLabel("")
+        self.power_message_label.setAlignment(Qt.AlignCenter)
+        self.power_message_label.setStyleSheet("color: white; font-size: 24px;")
+
+        self.shutdown_button = make_button("SHUT DOWN", RECORD_COLOR)
+        self.shutdown_button.clicked.connect(lambda: self._power_action("poweroff"))
+
+        self.restart_button = make_button("RESTART", NEUTRAL_COLOR)
+        self.restart_button.clicked.connect(lambda: self._power_action("reboot"))
+
+        self.power_cancel_button = make_button("CANCEL", NEUTRAL_COLOR)
+        self.power_cancel_button.clicked.connect(self._back_to_camera)
+
+        buttons = QHBoxLayout()
+        buttons.addWidget(self.power_cancel_button)
+        buttons.addWidget(self.restart_button)
+        buttons.addWidget(self.shutdown_button)
+
+        layout = QVBoxLayout()
+        layout.addWidget(make_title_label("Power"))
+        layout.addWidget(self.power_message_label, stretch=1)
+        layout.addLayout(buttons)
         page.setLayout(layout)
 
         return page
@@ -408,6 +448,7 @@ class MainWindow(QWidget):
         self.record_button.setText("STOP")
         self.record_button.setStyleSheet(BUTTON_STYLE + NEUTRAL_COLOR)
         self.review_button.setEnabled(False)
+        self.power_button.setEnabled(False)
 
         self._refresh_status_label()
 
@@ -487,6 +528,7 @@ class MainWindow(QWidget):
         self.record_button.setText("RECORD")
         self.record_button.setStyleSheet(BUTTON_STYLE + RECORD_COLOR)
         self.review_button.setEnabled(True)
+        self.power_button.setEnabled(True)
 
         self._refresh_status_label()
 
@@ -644,6 +686,54 @@ class MainWindow(QWidget):
 
         self.stack.setCurrentIndex(1)
 
+    # ------------------------------------------------------------------
+    # Power menu
+    # ------------------------------------------------------------------
+
+    def _open_power_menu(self):
+
+        # The button is disabled while recording - this is a backstop.
+        if self.recording:
+            return
+
+        self._stop_preview()
+
+        self.power_message_label.setText(
+            "Wait for the screen to go dark before unplugging power."
+        )
+        for button in (self.shutdown_button, self.restart_button, self.power_cancel_button):
+            button.setEnabled(True)
+
+        self.stack.setCurrentIndex(3)
+
+    def _power_action(self, action):
+
+        for button in (self.shutdown_button, self.restart_button, self.power_cancel_button):
+            button.setEnabled(False)
+
+        if action == "poweroff":
+            self.power_message_label.setText(
+                "Shutting down...\nUnplug power once the screen goes dark."
+            )
+        else:
+            self.power_message_label.setText("Restarting...")
+
+        print(f"Power menu: {action} requested")
+
+        # systemd stops this service with SIGTERM on the way down, which
+        # goes through main.py's handler -> closeEvent like any other stop.
+        result = subprocess.run(
+            ["sudo", "systemctl", action],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+
+        if result.returncode != 0:
+            print(f"systemctl {action} failed: {result.stdout.strip()}")
+            self.power_message_label.setText(f"{action} failed - see log")
+            self.power_cancel_button.setEnabled(True)
+
     def _back_to_camera(self):
 
         self.stack.setCurrentIndex(0)
@@ -778,6 +868,34 @@ class MainWindow(QWidget):
             self.recorder.stop()
 
         event.accept()
+
+
+def make_power_icon(size):
+    """The standard power symbol (broken circle + bar), drawn rather than
+    taken from a font - the Pi's fonts don't have the U+23FB glyph."""
+
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)
+
+    pen_width = max(2, size // 10)
+    margin = pen_width
+    pen = QPen(QColor("white"), pen_width, Qt.SolidLine, Qt.RoundCap)
+
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setPen(pen)
+
+    # Circle with a 60 degree gap at the top (Qt angles: 1/16 degree,
+    # 0 = 3 o'clock, counter-clockwise).
+    circle = QRectF(margin, margin + size * 0.05,
+                    size - 2 * margin, size - 2 * margin - size * 0.05)
+    painter.drawArc(circle, 120 * 16, 300 * 16)
+
+    center_x = size / 2
+    painter.drawLine(int(center_x), margin, int(center_x), int(size * 0.45))
+    painter.end()
+
+    return QIcon(pixmap)
 
 
 def make_title_label(text):
