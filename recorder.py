@@ -198,3 +198,37 @@ def fsync_path(path):
         os.fsync(fd)
     finally:
         os.close(fd)
+
+
+# Kernel log signatures of the bcm2835_codec crash (reproduced 2026-10-11):
+# an Oops (NULL deref in vchiq_mmal_port_enable) when the hardware encoder
+# starts, then "bcm2835-codec: Mutex fail", after which every encoder open
+# hangs. Nothing short of a reboot brings the encoder back.
+ENCODER_CRASH_SIGNATURES = (
+    "internal error: oops",
+    "mutex fail",
+    "vchiq_mmal_port_enable",
+)
+
+
+def encoder_crashed():
+    """True if this boot's kernel log shows the hardware encoder crash."""
+
+    try:
+        result = subprocess.run(
+            ["journalctl", "-k", "-b", "-o", "cat", "--no-pager"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print(f"Could not read kernel log to check the encoder: {error}")
+        return False
+
+    for line in result.stdout.splitlines():
+        if any(signature in line.lower() for signature in ENCODER_CRASH_SIGNATURES):
+            print(f"Kernel log shows the encoder crashed: {line.strip()}")
+            return True
+
+    return False

@@ -24,7 +24,7 @@ import config
 import microphone
 import playback
 from drivemanager import DriveManager
-from recorder import Recorder
+from recorder import Recorder, encoder_crashed
 from status import Status
 
 
@@ -177,6 +177,8 @@ class MainWindow(QWidget):
         self.mic_lost = False
         # None = nothing recorded yet this session, else True/False.
         self.last_take_saved = None
+        # Set once the hardware encoder has crashed - only a reboot fixes it.
+        self.encoder_broken = False
         self.preview = None
         self.last_preview_restart = 0.0
 
@@ -226,6 +228,8 @@ class MainWindow(QWidget):
 
         self.status_label = QLabel("")
         self.status_label.setTextFormat(Qt.RichText)
+        # Wrap rather than push the buttons off a 1280px-wide screen.
+        self.status_label.setWordWrap(True)
         self.status_label.setStyleSheet("color: white; font-size: 18px;")
 
         self.record_button = make_button("RECORD", RECORD_COLOR)
@@ -363,6 +367,9 @@ class MainWindow(QWidget):
         if storage_ready:
             self.status.free_space = self.drive.get_free_space()
 
+        if encoder_crashed():
+            self._mark_encoder_broken()
+
         print("Checking camera...")
         self.camera_device = camera.get_camera_device()
         self.status.camera_connected = self.camera_device is not None
@@ -407,7 +414,9 @@ class MainWindow(QWidget):
 
     def _on_record_button(self):
 
-        if self.recording:
+        if self.encoder_broken:
+            self._open_power_menu()
+        elif self.recording:
             self._begin_stop()
         else:
             self._start_recording()
@@ -467,6 +476,13 @@ class MainWindow(QWidget):
         print("Recording produced no data (stalled device handoff)")
         self.recorder.kill_without_finalize()
 
+        # A crashed encoder looks the same from here (no data), but a
+        # retry would just hang again - say a restart is needed instead.
+        if encoder_crashed():
+            self._enter_idle_state()
+            self._mark_encoder_broken()
+            return
+
         if self.recording_retried:
             print("Recording failed to start after retry, giving up")
             self._enter_idle_state()
@@ -525,7 +541,10 @@ class MainWindow(QWidget):
         self.status.current_file = None
         self.status.recording_start = None
 
-        self.record_button.setText("RECORD")
+        if self.encoder_broken:
+            self.record_button.setText("RESTART NEEDED")
+        else:
+            self.record_button.setText("RECORD")
         self.record_button.setStyleSheet(BUTTON_STYLE + RECORD_COLOR)
         self.review_button.setEnabled(True)
         self.power_button.setEnabled(True)
@@ -561,6 +580,8 @@ class MainWindow(QWidget):
         if self.recording and not self.stopping and not self.recorder.is_recording():
             print("Recorder stopped unexpectedly!")
             self._enter_idle_state()
+            if encoder_crashed():
+                self._mark_encoder_broken()
 
         camera_device = camera.get_camera_device()
 
@@ -638,12 +659,17 @@ class MainWindow(QWidget):
 
         if self.recording:
             parts.append(html.escape(f"REC {self.status.get_recording_time()}"))
+        elif self.encoder_broken:
+            parts.append('<span style="color: #e74c3c;">ENCODER CRASHED</span>')
         elif self.last_take_saved is True:
             parts.append('<span style="color: #2ecc71;">Last take: SAVED</span>')
         elif self.last_take_saved is False:
             parts.append('<span style="color: #e74c3c;">Last take: NOT SAVED</span>')
 
-        self.status_label.setText("&nbsp;&nbsp;&nbsp;".join(parts))
+        # Wrap only between items, never inside one (e.g. "IP:" / address).
+        self.status_label.setText("&nbsp;&nbsp; ".join(
+            f'<span style="white-space: nowrap;">{part}</span>' for part in parts
+        ))
 
     def _mic_status_html(self):
 
@@ -698,13 +724,26 @@ class MainWindow(QWidget):
 
         self._stop_preview()
 
-        self.power_message_label.setText(
-            "Wait for the screen to go dark before unplugging power."
-        )
+        if self.encoder_broken:
+            self.power_message_label.setText(
+                "The video encoder crashed and can't record.\n"
+                "Tap RESTART to fix it."
+            )
+        else:
+            self.power_message_label.setText(
+                "Wait for the screen to go dark before unplugging power."
+            )
         for button in (self.shutdown_button, self.restart_button, self.power_cancel_button):
             button.setEnabled(True)
 
         self.stack.setCurrentIndex(3)
+
+    def _mark_encoder_broken(self):
+
+        print("Hardware encoder crashed - recording disabled until restart")
+        self.encoder_broken = True
+        self.record_button.setText("RESTART NEEDED")
+        self._refresh_status_label()
 
     def _power_action(self, action):
 
