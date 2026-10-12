@@ -139,15 +139,16 @@ class StopWorker(QThread):
     can take several seconds (up to config.STOP_TIMEOUT_SECONDS), and
     doing that on the GUI thread freezes the touch UI for the duration."""
 
-    finished_stopping = pyqtSignal()
+    # True if the recording was flushed to the drive and finalized.
+    finished_stopping = pyqtSignal(bool)
 
     def __init__(self, recorder):
         super().__init__()
         self.recorder = recorder
 
     def run(self):
-        self.recorder.stop()
-        self.finished_stopping.emit()
+        saved = self.recorder.stop()
+        self.finished_stopping.emit(saved)
 
 
 def make_button(text, color_style):
@@ -174,6 +175,8 @@ class MainWindow(QWidget):
         # replug, so once lost it stays lost for the rest of the recording.
         self.recording_mic = None
         self.mic_lost = False
+        # None = nothing recorded yet this session, else True/False.
+        self.last_take_saved = None
         self.preview = None
         self.last_preview_restart = 0.0
 
@@ -397,6 +400,7 @@ class MainWindow(QWidget):
 
         self.recording = True
         self.recording_retried = False
+        self.last_take_saved = None
         self.status.recording = True
         self.status.current_file = filename
         self.status.recording_start = time.time()
@@ -457,14 +461,16 @@ class MainWindow(QWidget):
         # config.STOP_TIMEOUT_SECONDS) - run it off the GUI thread so
         # the touch UI stays responsive instead of freezing on STOP.
         self.record_button.setEnabled(False)
-        self.record_button.setText("STOPPING...")
+        self.record_button.setText("SAVING...")
+        self.video_label.setText("SAVING - DON'T UNPLUG THE DRIVE")
 
         self._stop_worker = StopWorker(self.recorder)
         self._stop_worker.finished_stopping.connect(self._on_stop_finished)
         self._stop_worker.start()
 
-    def _on_stop_finished(self):
+    def _on_stop_finished(self, saved):
 
+        self.last_take_saved = saved
         self.stopping = False
         self.record_button.setEnabled(True)
         self._enter_idle_state()
@@ -590,6 +596,10 @@ class MainWindow(QWidget):
 
         if self.recording:
             parts.append(html.escape(f"REC {self.status.get_recording_time()}"))
+        elif self.last_take_saved is True:
+            parts.append('<span style="color: #2ecc71;">Last take: SAVED</span>')
+        elif self.last_take_saved is False:
+            parts.append('<span style="color: #e74c3c;">Last take: NOT SAVED</span>')
 
         self.status_label.setText("&nbsp;&nbsp;&nbsp;".join(parts))
 

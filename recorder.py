@@ -124,13 +124,23 @@ class Recorder:
 
         self.process = None
 
+        saved = False
+
+        # ffmpeg exiting only means the data reached Linux's page cache -
+        # the kernel writes it to the SSD over the next ~30s. Unplugging
+        # the drive in that window lost the video of a finished take
+        # (2026-10-11), so force it onto the disk before calling it saved.
         try:
             if self.temp_file and os.path.exists(self.temp_file):
+                flush_start = time.time()
+                fsync_path(self.temp_file)
                 os.rename(
                     self.temp_file,
                     self.current_file
                 )
-                print("Recording stopped")
+                fsync_path(os.path.dirname(self.current_file))
+                print(f"Recording saved to disk (flush took {time.time() - flush_start:.1f}s)")
+                saved = True
             else:
                 print("Recording stopped (no temp file to finalize)")
 
@@ -147,6 +157,8 @@ class Recorder:
             print(f"Could not close ffmpeg log cleanly: {error}")
 
         self.log = None
+
+        return saved
 
     def is_recording(self):
 
@@ -175,3 +187,14 @@ class Recorder:
         if self.log:
             self.log.close()
             self.log = None
+
+
+def fsync_path(path):
+    """Block until path's data (or, for a directory, its entries - e.g. a
+    rename) is physically on the drive. Raises OSError if the drive is gone."""
+
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
